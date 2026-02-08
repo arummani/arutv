@@ -27,33 +27,55 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/video.js/8.10.0/video.min.js"></script>
     <script>
         const player = videojs('iptv-player');
-        const playlistUrl = 'https://iptv-org.github.io/iptv/index.m3u';
-        const channelList = document.getElementById('channel-list');
+        // Multiple playlist sources for better channel availability
+        const playlistUrls = [
+            'https://iptv-org.github.io/iptv/index.m3u',
+            'https://iptv-org.github.io/iptv/countries/us.m3u',
+            'https://iptv-org.github.io/iptv/regions/eur.m3u'
+        ];        const channelList = document.getElementById('channel-list');
         const searchInput = document.getElementById('search');
         let allChannels = [];
 
-        async function loadPlaylist() {
-            const response = await fetch(playlistUrl);
-            const text = await response.text();
-            const lines = text.split('\n');
-            let currentChannel = null;
+                async function loadPlaylists() {
+            allChannels = [];
+            const channelMap = new Map(); // To avoid duplicates
+            
+            // Fetch from all playlist sources
+            for (const playlistUrl of playlistUrls) {
+                try {
+                    console.log('Fetching playlist:', playlistUrl);
+                    const response = await fetch(playlistUrl);
+                    const text = await response.text();
+                    const lines = text.split('\n');
+                    let currentChannel = null;
 
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('#EXTINF:')) {
-                    const name = line.split(',')[1];
-                    currentChannel = { name };
-                } else if (line.startsWith('http')) {
-                    if (currentChannel) {
-                        currentChannel.url = line;
-                        allChannels.push(currentChannel);
-                        currentChannel = null;
+                    for (let line of lines) {
+                        line = line.trim();
+                        if (line.startsWith('#EXTINF:')) {
+                            const name = line.split(',')[1];
+                            currentChannel = { name };
+                        } else if (line.startsWith('http')) {
+                            if (currentChannel) {
+                                currentChannel.url = line;
+                                // Use channel name as key to avoid duplicates
+                                if (!channelMap.has(currentChannel.name)) {
+                                    channelMap.set(currentChannel.name, currentChannel);
+                                }
+                                currentChannel = null;
+                            }
+                        }
                     }
+                    console.log('Loaded channels from', playlistUrl);
+                } catch (error) {
+                    console.error('Error loading playlist', playlistUrl, error);
                 }
             }
+            
+            // Convert map to array
+            allChannels = Array.from(channelMap.values());
+            console.log('Total unique channels loaded:', allChannels.length);
             renderChannels(allChannels);
         }
-
         function renderChannels(channels) {
             channelList.innerHTML = '';
             channels.forEach(ch => {
@@ -74,7 +96,6 @@
             renderChannels(filtered);
         };
 
-        loadPlaylist();
-    </script>
+        loadPlaylists();    </script>
 </body>
 </html>
